@@ -184,6 +184,14 @@ class ChallengeSettingsForm(BaseForm):
         description="How long the timeout lasts in seconds for max attempts (if set to timeout). Default is 300 seconds",
         default=300,
     )
+    hint_penalty_mode = SelectField(
+        "Hint Penalty Mode",
+        description="Control when the cost of a hint is charged. Deduct on solve takes the "
+        "cost from the points the challenge awards when it is solved. Deduct on unlock "
+        "takes the cost from the account score as soon as the hint is unlocked",
+        choices=[("at_solve", "Deduct on solve"), ("at_unlock", "Deduct on unlock")],
+        default="at_solve",
+    )
     hints_free_public_access = SelectField(
         "Hints Free Public Access",
         description="Control whether users must be logged in to see free hints (hints without cost or requirements)",

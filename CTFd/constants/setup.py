@@ -18,4 +18,8 @@ DEFAULTS = {
     "registration_visibility": RegistrationVisibilityTypes.PUBLIC,
     "score_visibility": ScoreVisibilityTypes.PUBLIC,
     "account_visibility": AccountVisibilityTypes.PUBLIC,
+    # Hint penalization
+    # at_solve: hint costs are deducted from the challenge points when it is solved
+    # at_unlock: hint costs are deducted from the account score when it is unlocked
+    "hint_penalty_mode": "at_solve",
 }
