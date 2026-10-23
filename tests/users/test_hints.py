@@ -46,6 +46,8 @@ def test_user_can_unlock_hint():
     """Test that a user can unlock a hint if they have enough points"""
     app = create_ctfd()
     with app.app_context():
+        # This test covers the stock at_unlock deduction
+        set_config("hint_penalty_mode", "at_unlock")
         with app.test_client():
             register_user(app, name="user1", email="user1@examplectf.com")
 
@@ -114,6 +116,8 @@ def test_unlocking_hints_with_cost_during_ctf_with_points():
     """Test that hints with a cost are unlocked if you have the points"""
     app = create_ctfd()
     with app.app_context():
+        # This test covers the stock at_unlock deduction
+        set_config("hint_penalty_mode", "at_unlock")
         register_user(app)
         chal = gen_challenge(app.db)
         chal_id = chal.id
@@ -138,6 +142,8 @@ def test_unlocking_hints_with_cost_during_ctf_without_points():
     """Test that hints with a cost are not unlocked if you don't have the points"""
     app = create_ctfd()
     with app.app_context():
+        # The points gate only exists in the stock at_unlock mode
+        set_config("hint_penalty_mode", "at_unlock")
         register_user(app)
         chal = gen_challenge(app.db)
         chal_id = chal.id

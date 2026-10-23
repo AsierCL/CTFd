@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from CTFd.utils import set_config
 from CTFd.utils.scores import get_standings
 from tests.helpers import (
     create_ctfd,
@@ -18,6 +19,8 @@ def test_hint_team_unlock():
     """Is a user's unlocked hint reflected on other team members"""
     app = create_ctfd(user_mode="teams")
     with app.app_context():
+        # This test covers the stock at_unlock deduction
+        set_config("hint_penalty_mode", "at_unlock")
         user = gen_user(app.db)
         second_user = gen_user(app.db, name="user", email="second@examplectf.com")
         team = gen_team(app.db)
@@ -74,6 +77,8 @@ def test_hint_team_unlocking_without_points():
     """Test that teams cannot enter negative point valuations from unlocking hints"""
     app = create_ctfd(user_mode="teams")
     with app.app_context():
+        # The points gate only exists in the stock at_unlock mode
+        set_config("hint_penalty_mode", "at_unlock")
         user = gen_user(app.db)
         second_user = gen_user(app.db, name="user", email="second@examplectf.com")
         team = gen_team(app.db)

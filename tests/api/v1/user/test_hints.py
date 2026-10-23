@@ -66,6 +66,8 @@ def test_api_hint_locked():
     """Can the users unlock /api/v1/hints/<hint_id> if they don't have enough points"""
     app = create_ctfd()
     with app.app_context():
+        # The points gate only exists in the stock at_unlock mode
+        set_config("hint_penalty_mode", "at_unlock")
         chal = gen_challenge(app.db)
         gen_hint(app.db, chal.id, content="This is a hint", cost=1, type="standard")
         register_user(app)

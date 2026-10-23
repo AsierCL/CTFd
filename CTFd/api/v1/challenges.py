@@ -52,6 +52,7 @@ from CTFd.utils.config.visibility import (
     scores_visible,
 )
 from CTFd.utils.dates import ctf_ended, ctf_paused, ctftime, isoformat
+from CTFd.utils.hints import apply_hint_deduction
 from CTFd.utils.decorators import (
     admins_only,
     authed_only,
@@ -910,6 +911,9 @@ class ChallengeAttempt(Resource):
                                 },
                             }
 
+                        apply_hint_deduction(
+                            user=user, team=team, challenge=challenge
+                        )
                         clear_standings()
                         clear_challenges()
 

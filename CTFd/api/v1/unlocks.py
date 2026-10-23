@@ -26,6 +26,7 @@ from CTFd.utils.decorators import (
     require_verified_emails,
 )
 from CTFd.utils.helpers.models import build_model_filters
+from CTFd.utils.hints import deducts_at_solve
 from CTFd.utils.user import get_current_user, is_admin
 
 unlocks_namespace = Namespace("unlocks", description="Endpoint to retrieve Unlocks")
@@ -161,19 +162,24 @@ class UnlockList(Resource):
                 if not unlock_ids >= prereqs:
                     abort(403)
 
-            # We should use the team's score if in teams mode
-            # user.account gives the appropriate account based on team mode
-            # Use get_score with admin to get the account's full score value
-            if target.cost > user.account.get_score(admin=True):
-                return (
-                    {
-                        "success": False,
-                        "errors": {
-                            "score": "You do not have enough points to unlock this hint"
+            # In at_solve mode the cost is charged when the challenge is solved, so
+            # unlocking must neither require points nor deduct them right now.
+            charge_at_unlock = not deducts_at_solve()
+
+            if charge_at_unlock:
+                # We should use the team's score if in teams mode
+                # user.account gives the appropriate account based on team mode
+                # Use get_score with admin to get the account's full score value
+                if target.cost > user.account.get_score(admin=True):
+                    return (
+                        {
+                            "success": False,
+                            "errors": {
+                                "score": "You do not have enough points to unlock this hint"
+                            },
                         },
-                    },
-                    400,
-                )
+                        400,
+                    )
 
             schema = UnlockSchema()
             response = schema.load(req, session=db.session)
@@ -199,18 +205,19 @@ class UnlockList(Resource):
 
             db.session.add(response.data)
 
-            award_schema = AwardSchema()
-            award = {
-                "user_id": user.id,
-                "team_id": user.team_id,
-                "name": target.name,
-                "description": target.description,
-                "value": (-target.cost),
-                "category": target.category,
-            }
+            if charge_at_unlock:
+                award_schema = AwardSchema()
+                award = {
+                    "user_id": user.id,
+                    "team_id": user.team_id,
+                    "name": target.name,
+                    "description": target.description,
+                    "value": (-target.cost),
+                    "category": target.category,
+                }
 
-            award = award_schema.load(award)
-            db.session.add(award.data)
+                award = award_schema.load(award)
+                db.session.add(award.data)
             db.session.commit()
             clear_standings()
 
