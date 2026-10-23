@@ -15,6 +15,7 @@ from CTFd.models import Fails, Solves, Submissions, db
 from CTFd.schemas.submissions import SubmissionSchema
 from CTFd.utils.decorators import admins_only
 from CTFd.utils.helpers.models import build_model_filters
+from CTFd.utils.hints import remove_hint_deduction
 
 submissions_namespace = Namespace(
     "submissions", description="Endpoint to retrieve Submission"
@@ -263,6 +264,9 @@ class Submission(Resource):
         db.session.delete(submission)
         db.session.commit()
         db.session.close()
+
+        # Removing a solve must also remove the hint costs charged against it
+        remove_hint_deduction(account_id=account_id, challenge_id=challenge_id)
 
         # Clear out the user's recent attempt count
         # This is a little lossy but I don't think it matters in practice
