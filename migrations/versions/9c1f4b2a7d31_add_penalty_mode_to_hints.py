@@ -19,7 +19,9 @@ depends_on = None
 
 def upgrade():
     # NULL means "inherit the instance setting", so existing hints are untouched
-    op.add_column("hints", sa.Column("penalty_mode", sa.String(length=32), nullable=True))
+    op.add_column(
+        "hints", sa.Column("penalty_mode", sa.String(length=32), nullable=True)
+    )
 
 
 def downgrade():

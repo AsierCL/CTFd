@@ -384,9 +384,19 @@ def test_challenge_with_mixed_modes_deducts_only_the_at_solve_hints():
         assert Users.query.filter_by(id=2).first().score == 10
 
         # The at_unlock hint is charged now, the at_solve one is not
-        assert client.post("/api/v1/unlocks", json={"target": 1, "type": "hints"}).status_code == 200
+        assert (
+            client.post(
+                "/api/v1/unlocks", json={"target": 1, "type": "hints"}
+            ).status_code
+            == 200
+        )
         assert Users.query.filter_by(id=2).first().score == 6
-        assert client.post("/api/v1/unlocks", json={"target": 2, "type": "hints"}).status_code == 200
+        assert (
+            client.post(
+                "/api/v1/unlocks", json={"target": 2, "type": "hints"}
+            ).status_code
+            == 200
+        )
         assert Users.query.filter_by(id=2).first().score == 6
 
         r = solve(client, chal_id)
