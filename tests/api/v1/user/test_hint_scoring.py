@@ -272,6 +272,29 @@ def test_team_deduction_uses_the_team_account():
     destroy_ctfd(app)
 
 
+def test_solving_twice_does_not_duplicate_the_deduction():
+    """The already_solved path must not charge the hints a second time"""
+    app = create_ctfd()
+    with app.app_context():
+        register_user(app)
+        chal = gen_challenge(app.db, value=10)
+        chal_id = chal.id
+        gen_flag(app.db, challenge_id=chal_id, content="flag")
+        gen_hint(app.db, chal_id, cost=2)
+
+        client = login_as_user(app)
+        client.post("/api/v1/unlocks", json={"target": 1, "type": "hints"})
+
+        r = solve(client, chal_id)
+        assert r.get_json()["data"]["status"] == "correct"
+        r = solve(client, chal_id)
+        assert r.get_json()["data"]["status"] == "already_solved"
+
+        assert Awards.query.filter_by(category="hints").count() == 1
+        assert Users.query.filter_by(id=2).first().score == 8
+    destroy_ctfd(app)
+
+
 def test_hint_override_charges_at_unlock_while_instance_is_at_solve():
     """S8: a single hint can opt out of the instance default"""
     app = create_ctfd()
