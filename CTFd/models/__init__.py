@@ -198,6 +198,8 @@ class Hints(db.Model):
     )
     content = db.Column(db.Text)
     cost = db.Column(db.Integer, default=0)
+    # NULL inherits the instance wide hint_penalty_mode setting
+    penalty_mode = db.Column(db.String(32), nullable=True, default=None)
     requirements = db.Column(db.JSON)
 
     __mapper_args__ = {"polymorphic_identity": "standard", "polymorphic_on": type}

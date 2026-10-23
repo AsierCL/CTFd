@@ -270,3 +270,104 @@ def test_team_deduction_uses_the_team_account():
         assert standings[0].name == "team_name"
         assert standings[0].score == 8
     destroy_ctfd(app)
+
+
+def test_hint_override_charges_at_unlock_while_instance_is_at_solve():
+    """S8: a single hint can opt out of the instance default"""
+    app = create_ctfd()
+    with app.app_context():
+        register_user(app)
+        chal = gen_challenge(app.db, value=10)
+        chal_id = chal.id
+        gen_flag(app.db, challenge_id=chal_id, content="flag")
+        gen_hint(app.db, chal_id, cost=10, penalty_mode="at_unlock")
+        gen_award(app.db, user_id=2, value=15)
+
+        client = login_as_user(app)
+        assert Users.query.filter_by(id=2).first().score == 15
+
+        r = client.post("/api/v1/unlocks", json={"target": 1, "type": "hints"})
+        assert r.status_code == 200
+        assert Users.query.filter_by(id=2).first().score == 5
+
+        r = solve(client, chal_id)
+        assert r.get_json()["data"]["status"] == "correct"
+        # Nothing else is deducted at solve time
+        assert Users.query.filter_by(id=2).first().score == 15
+    destroy_ctfd(app)
+
+
+def test_hint_override_charges_at_solve_while_instance_is_at_unlock():
+    """S8: a hint can opt into the solve-time deduction on an at_unlock instance"""
+    app = create_ctfd()
+    with app.app_context():
+        set_config("hint_penalty_mode", "at_unlock")
+        register_user(app)
+        chal = gen_challenge(app.db, value=10)
+        chal_id = chal.id
+        gen_flag(app.db, challenge_id=chal_id, content="flag")
+        gen_hint(app.db, chal_id, cost=2, penalty_mode="at_solve")
+
+        client = login_as_user(app)
+        # The points gate only applies to hints charged at unlock
+        assert Users.query.filter_by(id=2).first().score == 0
+        r = client.post("/api/v1/unlocks", json={"target": 1, "type": "hints"})
+        assert r.status_code == 200
+        assert Users.query.filter_by(id=2).first().score == 0
+
+        r = solve(client, chal_id)
+        assert r.get_json()["data"]["status"] == "correct"
+        assert Users.query.filter_by(id=2).first().score == 8
+    destroy_ctfd(app)
+
+
+def test_hint_without_mode_inherits_the_instance_setting():
+    """S8: no explicit mode means the instance setting decides"""
+    app = create_ctfd()
+    with app.app_context():
+        set_config("hint_penalty_mode", "at_unlock")
+        register_user(app)
+        chal = gen_challenge(app.db, value=10)
+        chal_id = chal.id
+        gen_flag(app.db, challenge_id=chal_id, content="flag")
+        gen_hint(app.db, chal_id, cost=4)
+        gen_award(app.db, user_id=2, value=10)
+
+        client = login_as_user(app)
+        r = client.post("/api/v1/unlocks", json={"target": 1, "type": "hints"})
+        assert r.status_code == 200
+        # Inherited at_unlock: charged immediately
+        assert Users.query.filter_by(id=2).first().score == 6
+
+        r = solve(client, chal_id)
+        assert r.get_json()["data"]["status"] == "correct"
+        assert Users.query.filter_by(id=2).first().score == 16
+    destroy_ctfd(app)
+
+
+def test_challenge_with_mixed_modes_deducts_only_the_at_solve_hints():
+    """S9: both modes on one challenge coexist without double charging"""
+    app = create_ctfd()
+    with app.app_context():
+        register_user(app)
+        chal = gen_challenge(app.db, value=10)
+        chal_id = chal.id
+        gen_flag(app.db, challenge_id=chal_id, content="flag")
+        gen_hint(app.db, chal_id, cost=4, penalty_mode="at_unlock")
+        gen_hint(app.db, chal_id, cost=2, penalty_mode="at_solve")
+        gen_award(app.db, user_id=2, value=10)
+
+        client = login_as_user(app)
+        assert Users.query.filter_by(id=2).first().score == 10
+
+        # The at_unlock hint is charged now, the at_solve one is not
+        assert client.post("/api/v1/unlocks", json={"target": 1, "type": "hints"}).status_code == 200
+        assert Users.query.filter_by(id=2).first().score == 6
+        assert client.post("/api/v1/unlocks", json={"target": 2, "type": "hints"}).status_code == 200
+        assert Users.query.filter_by(id=2).first().score == 6
+
+        r = solve(client, chal_id)
+        assert r.get_json()["data"]["status"] == "correct"
+        # Only the at_solve hint is deducted from the challenge value
+        assert Users.query.filter_by(id=2).first().score == 14
+    destroy_ctfd(app)

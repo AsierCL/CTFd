@@ -26,7 +26,7 @@ from CTFd.utils.decorators import (
     require_verified_emails,
 )
 from CTFd.utils.helpers.models import build_model_filters
-from CTFd.utils.hints import deducts_at_solve
+from CTFd.utils.hints import hint_charges_at_unlock
 from CTFd.utils.user import get_current_user, is_admin
 
 unlocks_namespace = Namespace("unlocks", description="Endpoint to retrieve Unlocks")
@@ -162,9 +162,9 @@ class UnlockList(Resource):
                 if not unlock_ids >= prereqs:
                     abort(403)
 
-            # In at_solve mode the cost is charged when the challenge is solved, so
-            # unlocking must neither require points nor deduct them right now.
-            charge_at_unlock = not deducts_at_solve()
+            # A hint charged at solve time must neither require points nor deduct them
+            # right now; a hint charged at unlock keeps the stock behaviour.
+            charge_at_unlock = hint_charges_at_unlock(target)
 
             if charge_at_unlock:
                 # We should use the team's score if in teams mode
