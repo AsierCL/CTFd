@@ -69,6 +69,28 @@
 
                   <div class="form-group">
                     <label>
+                      Cost Behavior<br />
+                      <small>When the cost of this hint is charged.</small>
+                    </label>
+                    <select
+                      class="form-control custom-select"
+                      name="cost_behavior"
+                      v-model="cost_behavior"
+                    >
+                      <option value="">
+                        Default (use the instance setting)
+                      </option>
+                      <option value="at_solve">
+                        Deduct from the challenge when it is solved
+                      </option>
+                      <option value="at_unlock">
+                        Deduct from the score when the hint is unlocked
+                      </option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label>
                       Requirements<br />
                       <small
                         >Hints that must be unlocked before unlocking this
@@ -124,6 +146,7 @@ export default {
   data: function () {
     return {
       cost: 0,
+      cost_behavior: "",
       title: null,
       content: null,
       selectedHints: [],
@@ -164,6 +187,7 @@ export default {
           if (response.success) {
             let hint = response.data;
             this.cost = hint.cost;
+            this.cost_behavior = hint.cost_behavior || "";
             this.title = hint.title;
             this.content = hint.content;
             this.selectedHints = hint.requirements?.prerequisites || [];
@@ -186,6 +210,9 @@ export default {
     getCost: function () {
       return this.cost || 0;
     },
+    getCostBehavior: function () {
+      return this.cost_behavior || null;
+    },
     getContent: function () {
       this._forceRefresh();
       let editor = this.$refs.content;
@@ -199,6 +226,7 @@ export default {
         challenge_id: this.$props.challenge_id,
         content: this.getContent(),
         cost: this.getCost(),
+        cost_behavior: this.getCostBehavior(),
         title: this.getTitle(),
         requirements: { prerequisites: this.selectedHints },
       };

@@ -66,6 +66,28 @@
 
                   <div class="form-group">
                     <label>
+                      Cost Behavior<br />
+                      <small>When the cost of this hint is charged.</small>
+                    </label>
+                    <select
+                      class="form-control custom-select"
+                      name="cost_behavior"
+                      v-model="cost_behavior"
+                    >
+                      <option value="">
+                        Default (use the instance setting)
+                      </option>
+                      <option value="at_solve">
+                        Deduct from the challenge when it is solved
+                      </option>
+                      <option value="at_unlock">
+                        Deduct from the score when the hint is unlocked
+                      </option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label>
                       Requirements<br />
                       <small
                         >Hints that must be unlocked before unlocking this
@@ -118,6 +140,7 @@ export default {
   data: function () {
     return {
       cost: 0,
+      cost_behavior: "",
       selectedHints: [],
     };
   },
@@ -130,10 +153,14 @@ export default {
       }
       this.$refs.content.value = "";
       this.cost = 0;
+      this.cost_behavior = "";
       this.selectedHints = [];
     },
     getCost: function () {
       return this.cost || 0;
+    },
+    getCostBehavior: function () {
+      return this.cost_behavior || null;
     },
     getContent: function () {
       return this.$refs.content.value;
@@ -146,6 +173,7 @@ export default {
         challenge_id: this.$props.challenge_id,
         content: this.getContent(),
         cost: this.getCost(),
+        cost_behavior: this.getCostBehavior(),
         title: this.getTitle(),
         requirements: { prerequisites: this.selectedHints },
       };
