@@ -16,7 +16,7 @@ class HintSchema(ma.ModelSchema):
             "challenge",
             "challenge_id",
             "cost",
-            "penalty_mode",
+            "cost_behavior",
         ],
         "unlocked": [
             "id",
@@ -27,7 +27,7 @@ class HintSchema(ma.ModelSchema):
             "content",
             "html",
             "cost",
-            "penalty_mode",
+            "cost_behavior",
         ],
         "admin": [
             "id",
@@ -38,7 +38,7 @@ class HintSchema(ma.ModelSchema):
             "content",
             "html",
             "cost",
-            "penalty_mode",
+            "cost_behavior",
             "requirements",
         ],
     }

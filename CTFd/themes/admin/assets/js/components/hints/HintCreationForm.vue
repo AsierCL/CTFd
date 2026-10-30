@@ -66,13 +66,13 @@
 
                   <div class="form-group">
                     <label>
-                      Penalty<br />
+                      Cost Behavior<br />
                       <small>When the cost of this hint is charged.</small>
                     </label>
                     <select
                       class="form-control custom-select"
-                      name="penalty_mode"
-                      v-model="penalty_mode"
+                      name="cost_behavior"
+                      v-model="cost_behavior"
                     >
                       <option value="">
                         Default (use the instance setting)
@@ -140,7 +140,7 @@ export default {
   data: function () {
     return {
       cost: 0,
-      penalty_mode: "",
+      cost_behavior: "",
       selectedHints: [],
     };
   },
@@ -153,14 +153,14 @@ export default {
       }
       this.$refs.content.value = "";
       this.cost = 0;
-      this.penalty_mode = "";
+      this.cost_behavior = "";
       this.selectedHints = [];
     },
     getCost: function () {
       return this.cost || 0;
     },
-    getPenaltyMode: function () {
-      return this.penalty_mode || null;
+    getCostBehavior: function () {
+      return this.cost_behavior || null;
     },
     getContent: function () {
       return this.$refs.content.value;
@@ -173,7 +173,7 @@ export default {
         challenge_id: this.$props.challenge_id,
         content: this.getContent(),
         cost: this.getCost(),
-        penalty_mode: this.getPenaltyMode(),
+        cost_behavior: this.getCostBehavior(),
         title: this.getTitle(),
         requirements: { prerequisites: this.selectedHints },
       };

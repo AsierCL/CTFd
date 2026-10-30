@@ -198,8 +198,8 @@ class Hints(db.Model):
     )
     content = db.Column(db.Text)
     cost = db.Column(db.Integer, default=0)
-    # NULL inherits the instance wide hint_penalty_mode setting
-    penalty_mode = db.Column(db.String(32), nullable=True, default=None)
+    # NULL inherits the instance wide hint_cost_behavior setting
+    cost_behavior = db.Column(db.String(32), nullable=True, default=None)
     requirements = db.Column(db.JSON)
 
     __mapper_args__ = {"polymorphic_identity": "standard", "polymorphic_on": type}
@@ -241,6 +241,11 @@ class Awards(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))
     team_id = db.Column(db.Integer, db.ForeignKey("teams.id", ondelete="CASCADE"))
+    # Set on hint awards so a charge can be tied to the challenge that pays for it.
+    # Deliberately not a foreign key: SQLite cannot add a constraint to an existing
+    # table without rebuilding it, and CTFd supports SQLite. Removal is explicit in
+    # BaseChallenge.delete and in the submission delete endpoint.
+    challenge_id = db.Column(db.Integer, nullable=True)
     type = db.Column(db.String(80), default="standard")
     name = db.Column(db.String(80))
     description = db.Column(db.Text)

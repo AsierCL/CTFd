@@ -120,8 +120,8 @@
                       {% else %}
                       <summary>Unlock Hint for {{ hint.cost }} point{{ hint.cost|pluralize }}</summary>
                       {% endif %}
-                      {% set hint_penalty = hint.penalty_mode or config.get_config("hint_penalty_mode") %}
-                      {% if hint_penalty == "at_solve" %}
+                      {% set hint_behavior = hint.cost_behavior or config.get_config("hint_cost_behavior") %}
+                      {% if hint_behavior == "at_solve" %}
                       <div><small class="text-muted">{% trans %}Deducted from this challenge's score when you solve it{% endtrans %}</small></div>
                       {% endif %}
                       <div x-html="html"></div>

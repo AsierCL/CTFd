@@ -1,55 +1,61 @@
-"""Helpers for the hint penalty rules.
+"""Helpers for the hint cost behaviour.
 
-The penalty mode decides when the cost of a hint is charged to an account:
+The cost behaviour decides when the cost of a hint is charged to an account:
+
+``at_unlock`` (default)
+    Stock CTFd behaviour. The cost is deducted from the account score the moment the
+    hint is unlocked, and solving the challenge pays its full value.
 
 ``at_solve``
     Unlocking the hint is free. When a challenge is solved, the cost of the hints the
     account unlocked for it is deducted from the points the challenge awards, clamped
     at zero. A hint asked for on a challenge that is never solved costs nothing.
 
-``at_unlock``
-    Stock CTFd behaviour. The cost is deducted from the account score the moment the
-    hint is unlocked, and solving the challenge pays its full value.
-
-Each hint can carry its own ``penalty_mode``. A hint with no explicit mode inherits
-the instance wide ``hint_penalty_mode`` setting, so both modes can coexist inside one
-challenge and existing hints keep behaving as they did.
+Each hint can carry its own ``cost_behavior``. A hint with no explicit behaviour
+inherits the instance wide ``hint_cost_behavior`` setting, so both behaviours can
+coexist inside one challenge and existing hints keep behaving as they did.
 """
 
 from CTFd.models import Awards, Hints, HintUnlocks, db
 from CTFd.utils import get_config
 
-HINT_PENALTY_AT_SOLVE = "at_solve"
-HINT_PENALTY_AT_UNLOCK = "at_unlock"
-HINT_PENALTY_MODES = (HINT_PENALTY_AT_SOLVE, HINT_PENALTY_AT_UNLOCK)
+HINT_COST_AT_UNLOCK = "at_unlock"
+HINT_COST_AT_SOLVE = "at_solve"
+HINT_COST_BEHAVIORS = (HINT_COST_AT_UNLOCK, HINT_COST_AT_SOLVE)
+
+# Category used by the charge created at solve time. It is deliberately distinct from
+# the "hints" category used by the charge created at unlock time, so that removing a
+# solve can drop the former without touching what the player paid to unlock a hint.
+HINT_DEDUCTION_CATEGORY = "hint_deduction"
 
 
-def get_hint_penalty_mode():
-    """Return the instance wide mode, falling back to at_solve."""
-    mode = get_config("hint_penalty_mode", default=HINT_PENALTY_AT_SOLVE)
-    if mode not in HINT_PENALTY_MODES:
-        return HINT_PENALTY_AT_SOLVE
-    return mode
+def get_hint_cost_behavior():
+    """Return the instance wide behaviour, falling back to at_unlock."""
+    behavior = get_config("hint_cost_behavior", default=HINT_COST_AT_UNLOCK)
+    if behavior not in HINT_COST_BEHAVIORS:
+        return HINT_COST_AT_UNLOCK
+    return behavior
 
 
-def hint_penalty_mode(hint):
-    """Effective mode for one hint: its own value, else the instance setting."""
-    mode = getattr(hint, "penalty_mode", None)
-    if mode in HINT_PENALTY_MODES:
-        return mode
-    return get_hint_penalty_mode()
+def hint_cost_behavior(hint):
+    """Effective behaviour for one hint: its own value, else the instance setting."""
+    behavior = getattr(hint, "cost_behavior", None)
+    if behavior in HINT_COST_BEHAVIORS:
+        return behavior
+    return get_hint_cost_behavior()
 
 
 def hint_charges_at_unlock(hint):
     """True when unlocking this hint has to be charged right away."""
-    return hint_penalty_mode(hint) == HINT_PENALTY_AT_UNLOCK
+    return hint_cost_behavior(hint) == HINT_COST_AT_UNLOCK
 
 
-def get_hint_cost(account_id, challenge_id, mode=None):
+def get_hint_cost(account_id, challenge_id, behavior=None):
     """Total cost of the hints this account unlocked for a challenge.
 
-    Passing ``mode`` limits the sum to the hints whose effective mode matches, which is
-    how a challenge with hints of both modes is charged correctly on each side.
+    Passing ``behavior`` limits the sum to the hints whose effective behaviour
+    matches, which is how a challenge with hints of both behaviours is charged
+    correctly on each side.
     """
     rows = (
         db.session.query(Hints)
@@ -63,7 +69,7 @@ def get_hint_cost(account_id, challenge_id, mode=None):
 
     total = 0
     for hint in rows:
-        if mode is not None and hint_penalty_mode(hint) != mode:
+        if behavior is not None and hint_cost_behavior(hint) != behavior:
             continue
         total += int(hint.cost or 0)
     return total
@@ -78,7 +84,7 @@ def apply_hint_deduction(user, team, challenge):
     cost = get_hint_cost(
         account_id=user.account_id,
         challenge_id=challenge.id,
-        mode=HINT_PENALTY_AT_SOLVE,
+        behavior=HINT_COST_AT_SOLVE,
     )
     if cost <= 0:
         return None
@@ -91,13 +97,11 @@ def apply_hint_deduction(user, team, challenge):
     award = Awards(
         user_id=user.id,
         team_id=team.id if team else None,
+        challenge_id=challenge.id,
         name="Hint deduction: {}".format(challenge.name),
         description="Cost of the hints unlocked for {}".format(challenge.name),
         value=-deduction,
-        category="hints",
-        # Keeps the deduction tied to its challenge so removing the solve can
-        # remove the deduction with it.
-        requirements={"challenge_id": challenge.id, "hint_cost": cost},
+        category=HINT_DEDUCTION_CATEGORY,
     )
     db.session.add(award)
     db.session.commit()
@@ -105,19 +109,36 @@ def apply_hint_deduction(user, team, challenge):
 
 
 def remove_hint_deduction(account_id, challenge_id):
-    """Delete the deduction created for a solved challenge.
+    """Delete the charge created at solve time for a challenge.
 
     Called when a solve is removed so the account does not keep a permanent penalty
-    without the challenge value that paid for it.
+    without the challenge value that paid for it. Awards created at unlock time are
+    left alone: the player paid for those when they asked for the hint.
     """
-    awards = Awards.query.filter(Awards.category == "hints").all()
+    query = Awards.query.filter(
+        Awards.category == HINT_DEDUCTION_CATEGORY,
+        Awards.challenge_id == challenge_id,
+    )
+    if account_id is not None:
+        query = query.filter(Awards.account_id == account_id)
+
     removed = 0
-    for award in awards:
-        requirements = award.requirements or {}
-        if requirements.get("challenge_id") != challenge_id:
-            continue
-        if account_id is not None and award.account_id != account_id:
-            continue
+    for award in query.all():
+        db.session.delete(award)
+        removed += 1
+    if removed:
+        db.session.commit()
+    return removed
+
+
+def remove_challenge_hint_awards(challenge_id):
+    """Drop every hint charge tied to a challenge that is being deleted.
+
+    Without this, deleting a challenge removes its solves (and therefore the points
+    that paid for the hints) but leaves the charges behind as a permanent penalty.
+    """
+    removed = 0
+    for award in Awards.query.filter_by(challenge_id=challenge_id).all():
         db.session.delete(award)
         removed += 1
     if removed:

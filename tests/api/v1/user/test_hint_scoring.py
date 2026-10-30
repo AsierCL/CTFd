@@ -1,17 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""Tests for the hint_penalty_mode setting.
+"""Tests for the hint_cost_behavior setting.
 
-at_solve (default): unlocking a hint costs nothing. When the challenge is solved,
-the cost of the hints unlocked for that challenge is deducted from the points the
-challenge awards, clamped at zero.
+at_unlock (default): upstream CTFd behaviour. The cost is deducted from the account
+at the moment the hint is unlocked, and solving pays the full challenge value.
 
-at_unlock: upstream CTFd behaviour. The cost is deducted from the account at the
-moment the hint is unlocked, and solving pays the full challenge value.
+at_solve: unlocking a hint costs nothing. When the challenge is solved, the cost of
+the hints unlocked for that challenge is deducted from the points the challenge
+awards, clamped at zero.
 """
 
-from CTFd.models import Awards, Challenges, Solves, Users
+from CTFd.models import Awards, Challenges, Users
 from CTFd.plugins.dynamic_challenges import DynamicChallenge
 from CTFd.utils import get_config, set_config
 from CTFd.utils.scores import get_standings
@@ -36,18 +36,19 @@ def solve(client, challenge_id, submission="flag"):
     )
 
 
-def test_hint_penalty_mode_defaults_to_at_solve():
-    """The new behaviour is the default without any configuration"""
+def test_hint_cost_behavior_defaults_to_at_unlock():
+    """Upgrading an instance must not change how hint costs are charged"""
     app = create_ctfd()
     with app.app_context():
-        assert get_config("hint_penalty_mode") == "at_solve"
+        assert get_config("hint_cost_behavior") == "at_unlock"
     destroy_ctfd(app)
 
 
 def test_unlocking_a_hint_does_not_change_the_score():
-    """S1: the unlock itself never moves the account score"""
+    """S1: in at_solve mode the unlock itself never moves the account score"""
     app = create_ctfd()
     with app.app_context():
+        set_config("hint_cost_behavior", "at_solve")
         register_user(app)
         chal = gen_challenge(app.db, value=100)
         chal_id = chal.id
@@ -70,9 +71,10 @@ def test_unlocking_a_hint_does_not_change_the_score():
 
 
 def test_hint_can_be_unlocked_without_points():
-    """S1/S3: with the deduction deferred to the solve there is no points gate"""
+    """S1/S3: with the charge deferred to the solve there is no points gate"""
     app = create_ctfd()
     with app.app_context():
+        set_config("hint_cost_behavior", "at_solve")
         register_user(app)
         chal = gen_challenge(app.db, value=100)
         chal_id = chal.id
@@ -94,6 +96,7 @@ def test_solving_deducts_the_hint_cost_from_the_challenge():
     """S2: challenge worth 10 with a 2 point hint pays 8"""
     app = create_ctfd()
     with app.app_context():
+        set_config("hint_cost_behavior", "at_solve")
         register_user(app)
         chal = gen_challenge(app.db, value=10)
         chal_id = chal.id
@@ -133,6 +136,7 @@ def test_deduction_is_clamped_at_zero():
     """S5: hints worth more than the challenge never make the score negative"""
     app = create_ctfd()
     with app.app_context():
+        set_config("hint_cost_behavior", "at_solve")
         register_user(app)
         chal = gen_challenge(app.db, value=10)
         chal_id = chal.id
@@ -158,6 +162,7 @@ def test_unlocking_after_solving_deducts_nothing():
     """S6: the challenge is already paid, unlocking later costs nothing"""
     app = create_ctfd()
     with app.app_context():
+        set_config("hint_cost_behavior", "at_solve")
         register_user(app)
         chal = gen_challenge(app.db, value=10)
         chal_id = chal.id
@@ -179,10 +184,9 @@ def test_unlocking_after_solving_deducts_nothing():
 
 
 def test_at_unlock_mode_keeps_deducting_on_unlock():
-    """S7: the upstream behaviour is still available behind the flag"""
+    """S7: the upstream behaviour is the default and is unchanged"""
     app = create_ctfd()
     with app.app_context():
-        set_config("hint_penalty_mode", "at_unlock")
         register_user(app)
         chal = gen_challenge(app.db, value=10)
         chal_id = chal.id
@@ -205,11 +209,30 @@ def test_at_unlock_mode_keeps_deducting_on_unlock():
     destroy_ctfd(app)
 
 
+def test_at_unlock_mode_still_refuses_unlocks_without_points():
+    """The points gate belongs to at_unlock and must not be removed from it"""
+    app = create_ctfd()
+    with app.app_context():
+        register_user(app)
+        chal = gen_challenge(app.db, value=10)
+        gen_hint(app.db, chal.id, cost=10)
+
+        client = login_as_user(app)
+        r = client.post("/api/v1/unlocks", json={"target": 1, "type": "hints"})
+        assert r.status_code == 400
+        assert (
+            r.get_json()["errors"]["score"]
+            == "You do not have enough points to unlock this hint"
+        )
+    destroy_ctfd(app)
+
+
 def test_dynamic_challenge_is_deducted_from_its_solved_value():
     """S2: the deduction applies to dynamic challenges too"""
     # enable_plugins so the dynamic challenge class is registered (SAFE_MODE off)
     app = create_ctfd(enable_plugins=True)
     with app.app_context():
+        set_config("hint_cost_behavior", "at_solve")
         register_user(app)
         chal = DynamicChallenge(
             name="chal_name",
@@ -242,9 +265,10 @@ def test_dynamic_challenge_is_deducted_from_its_solved_value():
 
 
 def test_team_deduction_uses_the_team_account():
-    """S2: in teams mode a hint unlocked by one member discounts a solve by another"""
+    """S2: in teams mode a hint unlocked by one member discounts another's solve"""
     app = create_ctfd(user_mode="teams")
     with app.app_context():
+        set_config("hint_cost_behavior", "at_solve")
         user = gen_user(app.db)
         second_user = gen_user(app.db, name="user", email="second@examplectf.com")
         team = gen_team(app.db)
@@ -276,6 +300,7 @@ def test_solving_twice_does_not_duplicate_the_deduction():
     """The already_solved path must not charge the hints a second time"""
     app = create_ctfd()
     with app.app_context():
+        set_config("hint_cost_behavior", "at_solve")
         register_user(app)
         chal = gen_challenge(app.db, value=10)
         chal_id = chal.id
@@ -290,7 +315,7 @@ def test_solving_twice_does_not_duplicate_the_deduction():
         r = solve(client, chal_id)
         assert r.get_json()["data"]["status"] == "already_solved"
 
-        assert Awards.query.filter_by(category="hints").count() == 1
+        assert Awards.query.filter_by(category="hint_deduction").count() == 1
         assert Users.query.filter_by(id=2).first().score == 8
     destroy_ctfd(app)
 
@@ -299,11 +324,12 @@ def test_hint_override_charges_at_unlock_while_instance_is_at_solve():
     """S8: a single hint can opt out of the instance default"""
     app = create_ctfd()
     with app.app_context():
+        set_config("hint_cost_behavior", "at_solve")
         register_user(app)
         chal = gen_challenge(app.db, value=10)
         chal_id = chal.id
         gen_flag(app.db, challenge_id=chal_id, content="flag")
-        gen_hint(app.db, chal_id, cost=10, penalty_mode="at_unlock")
+        gen_hint(app.db, chal_id, cost=10, cost_behavior="at_unlock")
         gen_award(app.db, user_id=2, value=15)
 
         client = login_as_user(app)
@@ -321,15 +347,15 @@ def test_hint_override_charges_at_unlock_while_instance_is_at_solve():
 
 
 def test_hint_override_charges_at_solve_while_instance_is_at_unlock():
-    """S8: a hint can opt into the solve-time deduction on an at_unlock instance"""
+    """S8: a hint can opt into the solve-time charge on an at_unlock instance"""
     app = create_ctfd()
     with app.app_context():
-        set_config("hint_penalty_mode", "at_unlock")
+        set_config("hint_cost_behavior", "at_unlock")
         register_user(app)
         chal = gen_challenge(app.db, value=10)
         chal_id = chal.id
         gen_flag(app.db, challenge_id=chal_id, content="flag")
-        gen_hint(app.db, chal_id, cost=2, penalty_mode="at_solve")
+        gen_hint(app.db, chal_id, cost=2, cost_behavior="at_solve")
 
         client = login_as_user(app)
         # The points gate only applies to hints charged at unlock
@@ -344,11 +370,11 @@ def test_hint_override_charges_at_solve_while_instance_is_at_unlock():
     destroy_ctfd(app)
 
 
-def test_hint_without_mode_inherits_the_instance_setting():
-    """S8: no explicit mode means the instance setting decides"""
+def test_hint_without_behavior_inherits_the_instance_setting():
+    """S8: no explicit behaviour means the instance setting decides"""
     app = create_ctfd()
     with app.app_context():
-        set_config("hint_penalty_mode", "at_unlock")
+        set_config("hint_cost_behavior", "at_unlock")
         register_user(app)
         chal = gen_challenge(app.db, value=10)
         chal_id = chal.id
@@ -368,16 +394,17 @@ def test_hint_without_mode_inherits_the_instance_setting():
     destroy_ctfd(app)
 
 
-def test_challenge_with_mixed_modes_deducts_only_the_at_solve_hints():
-    """S9: both modes on one challenge coexist without double charging"""
+def test_challenge_with_mixed_behaviors_deducts_only_the_at_solve_hints():
+    """S9: both behaviours on one challenge coexist without double charging"""
     app = create_ctfd()
     with app.app_context():
+        set_config("hint_cost_behavior", "at_solve")
         register_user(app)
         chal = gen_challenge(app.db, value=10)
         chal_id = chal.id
         gen_flag(app.db, challenge_id=chal_id, content="flag")
-        gen_hint(app.db, chal_id, cost=4, penalty_mode="at_unlock")
-        gen_hint(app.db, chal_id, cost=2, penalty_mode="at_solve")
+        gen_hint(app.db, chal_id, cost=4, cost_behavior="at_unlock")
+        gen_hint(app.db, chal_id, cost=2, cost_behavior="at_solve")
         gen_award(app.db, user_id=2, value=10)
 
         client = login_as_user(app)

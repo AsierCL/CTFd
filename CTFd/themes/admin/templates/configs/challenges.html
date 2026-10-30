@@ -1,7 +1,7 @@
 <div role="tabpanel" class="tab-pane config-section" id="challenges">
 	{% set view_self_submissions = "true" if view_self_submissions == True else "false" %}
     {% set hints_free_public_access = "true" if hints_free_public_access == True else "false" %}
-	{% set hint_penalty_mode = "at_unlock" if hint_penalty_mode == "at_unlock" else "at_solve" %}
+	{% set hint_cost_behavior = "at_solve" if hint_cost_behavior == "at_solve" else "at_unlock" %}
 	{% set max_attempts_behavior = "timeout" if max_attempts_behavior == "timeout" else "lockout" %}
 	{% set max_attempts_timeout = 300 if max_attempts_timeout is not defined else max_attempts_timeout %}
 	{% set challenge_ratings = public if challenge_ratings is not defined else challenge_ratings %}
@@ -9,7 +9,7 @@
 		with form = Forms.config.ChallengeSettingsForm(
 			view_self_submissions=view_self_submissions,
 			hints_free_public_access=hints_free_public_access, 
-			hint_penalty_mode=hint_penalty_mode,
+			hint_cost_behavior=hint_cost_behavior,
 			max_attempts_behavior=max_attempts_behavior,
 			max_attempts_timeout=max_attempts_timeout,
 			challenge_ratings=challenge_ratings,
@@ -45,10 +45,10 @@
 			</small>
 		</div>
 		<div class="form-group">
-			{{ form.hint_penalty_mode.label }}
-			{{ form.hint_penalty_mode(class="form-control custom-select") }}
+			{{ form.hint_cost_behavior.label }}
+			{{ form.hint_cost_behavior(class="form-control custom-select") }}
 			<small class="form-text text-muted">
-				{{ form.hint_penalty_mode.description }}
+				{{ form.hint_cost_behavior.description }}
 			</small>
 		</div>
 		<div class="form-group">

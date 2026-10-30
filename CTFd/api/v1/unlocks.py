@@ -210,6 +210,7 @@ class UnlockList(Resource):
                 award = {
                     "user_id": user.id,
                     "team_id": user.team_id,
+                    "challenge_id": getattr(target, "challenge_id", None),
                     "name": target.name,
                     "description": target.description,
                     "value": (-target.cost),
