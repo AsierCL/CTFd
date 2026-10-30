@@ -212,6 +212,11 @@ class BaseChallenge(object):
                 delete_file(f.id)
             SolutionUnlocks.query.filter_by(target=solution.id).delete()
             Solutions.query.filter_by(id=solution.id).delete()
+        # Drop the hint charges tied to this challenge, otherwise the points that paid
+        # for them are gone but the penalty stays on the account.
+        from CTFd.utils.hints import remove_challenge_hint_awards  # noqa: I001
+
+        remove_challenge_hint_awards(challenge.id)
         Challenges.query.filter_by(id=challenge.id).delete()
         cls.challenge_model.query.filter_by(id=challenge.id).delete()
         db.session.commit()

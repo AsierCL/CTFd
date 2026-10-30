@@ -63,6 +63,7 @@ from CTFd.utils.decorators.visibility import (
     check_challenge_visibility,
     check_score_visibility,
 )
+from CTFd.utils.hints import apply_hint_deduction
 from CTFd.utils.humanize.words import pluralize
 from CTFd.utils.logging import log
 from CTFd.utils.modules import can_access_challenge, get_accessible_module_ids
@@ -931,6 +932,7 @@ class ChallengeAttempt(Resource):
                                 },
                             }
 
+                        apply_hint_deduction(user=user, team=team, challenge=challenge)
                         clear_standings()
                         clear_challenges()
 
